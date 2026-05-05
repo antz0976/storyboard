@@ -6,6 +6,8 @@
     <title>애니메이션 스토리보드</title>
     <!-- 세련된 컬러 픽커 렌더링을 위한 iro.js 라이브러리 -->
     <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+    <!-- PDF 출력을 위한 html2pdf.js 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body {
             font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
@@ -481,6 +483,8 @@
             <button class="btn icon-btn-top" id="undoBtn" onclick="undo()" title="실행 취소 (Ctrl+Z)" disabled>↩️</button>
             <button class="btn icon-btn-top" id="redoBtn" onclick="redo()" title="다시 실행 (Ctrl+Y)" disabled>↪️</button>
             <div class="divider"></div>
+            <!-- PDF 출력 버튼 추가 -->
+            <button class="btn" onclick="exportPDF()" title="PDF로 출력하기">📄 PDF 출력</button>
             <button class="btn" onclick="openImportModal()">📥 불러오기</button>
             <button class="btn" onclick="exportData()">📤 내보내기</button>
             <button class="btn primary-btn" id="addSceneBtn">+ 씬 추가</button>
@@ -1201,5 +1205,188 @@
         }
 
         // ==========================================
+        // PDF 출력 기능 (우측 잘림 완벽 해결)
+        // ==========================================
+        function exportPDF() {
+            showToast("PDF를 생성하는 중입니다. 잠시만 기다려주세요...");
+            
+            const data = getAllScenesData();
+            const title = scenarioTitleInput.value || '애니메이션 스토리보드';
+            
+            const printContainer = document.createElement('div');
+            // A4 문서 비율에 최적화된 픽셀 너비로 고정
+            printContainer.style.width = '794px'; 
+            printContainer.style.padding = '20px';
+            printContainer.style.backgroundColor = '#ffffff';
+            printContainer.style.fontFamily = "'Pretendard', 'Malgun Gothic', sans-serif";
+            printContainer.style.color = '#1f2937';
+            printContainer.style.boxSizing = 'border-box';
+            
+            let htmlContent = `
+                <h1 style="text-align: center; margin-bottom: 30px; font-size: 26px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${title}</h1>
+            `;
+            
+            data.forEach(scene => {
+                const formatText = (text) => text ? text.replace(/\n/g, '<br>') : '<span style="color: #9ca3af;">(없음)</span>';
+                
+                htmlContent += `
+                    <div style="page-break-inside: avoid; margin-bottom: 25px; border: 1px solid #d1d5db; border-radius: 8px; background-color: #fff; overflow: hidden; box-sizing: border-box;">
+                        <div style="padding: 12px 15px; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb; box-sizing: border-box;">
+                            <h3 style="margin: 0; font-size: 16px; color: #2563eb;">Scene ${scene.id}</h3>
+                        </div>
+                        <div style="padding: 15px; display: block; overflow: hidden; box-sizing: border-box;">
+                            
+                            <!-- 좌측: 캔버스 이미지 -->
+                            <div style="float: left; width: 48%; box-sizing: border-box;">
+                                <img src="${scene.canvasData}" style="width: 100%; display: block; border: 1px solid #e5e7eb; border-radius: 4px; box-sizing: border-box;">
+                            </div>
+                            
+                            <!-- 우측: 텍스트 정보 -->
+                            <div style="float: right; width: 48%; box-sizing: border-box;">
+                                <div style="margin-bottom: 15px; background-color: #f9fafb; padding: 10px; border-radius: 6px; border: 1px solid #f3f4f6; box-sizing: border-box;">
+                                    <strong style="font-size: 13px; color: #4b5563; display: block; margin-bottom: 6px;">대사</strong>
+                                    <div style="font-size: 14px; line-height: 1.6; min-height: 40px; word-break: break-all;">${formatText(scene.dialogue)}</div>
+                                </div>
+                                <div style="background-color: #f9fafb; padding: 10px; border-radius: 6px; border: 1px solid #f3f4f6; box-sizing: border-box;">
+                                    <strong style="font-size: 13px; color: #4b5563; display: block; margin-bottom: 6px;">노트</strong>
+                                    <div style="font-size: 14px; line-height: 1.6; min-height: 40px; word-break: break-all;">${formatText(scene.note)}</div>
+                                </div>
+                            </div>
+                            <!-- float 겹침 방지 해제 -->
+                            <div style="clear: both;"></div>
+
+                        </div>
+                    </div>
+                `;
+            });
+            
+            printContainer.innerHTML = htmlContent;
+            
+            const opt = {
+                margin:       [15, 10, 15, 10],  // 좁아진 너비 보상을 위해 좌우 여백을 10mm로 조절
+                filename:     `${title}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    letterRendering: true,
+                    windowWidth: 794, // ★ 핵심: 화면 크기에 상관없이 794px 너비로 렌더링 강제
+                    width: 794        // 캔버스 자체의 물리적 캡처 폭도 고정
+                },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            
+            html2pdf().set(opt).from(printContainer).save().then(() => {
+                showToast("PDF 출력이 완료되었습니다.");
+            }).catch(err => {
+                console.error(err);
+                showToast("PDF 생성 중 오류가 발생했습니다.");
+            });
+        }
+
+        // ==========================================
         // 확대 편집 모달 세팅
-        // ==========... (5KB 남음)
+        // ==========================================
+        const expandModal = document.getElementById('expandModal');
+        const expCanvas = document.getElementById('expandCanvas');
+        const expCtx = expCanvas.getContext('2d');
+        const expDialogue = document.getElementById('expDialogue');
+        const expNote = document.getElementById('expNote');
+        const expandSceneTitle = document.getElementById('expandSceneTitle');
+        let currentTargetCard = null;
+
+        document.getElementById('expPenBtn').innerHTML = ICONS.pen;
+        document.getElementById('expEraserBtn').innerHTML = ICONS.eraser;
+        document.getElementById('expClearBtn').innerHTML = `${ICONS.clear} Clear`;
+
+        setupCanvasEvents(
+            expCanvas, expCtx,
+            document.getElementById('expPenBtn'),
+            document.getElementById('expEraserBtn'),
+            document.getElementById('expColorFill'), // 색상 연동 버튼
+            document.getElementById('expWidthSlider'),
+            document.getElementById('expClearBtn'),
+            null
+        );
+
+        function openExpandModal(sceneCard) {
+            currentTargetCard = sceneCard;
+            const index = sceneCard.dataset.sceneIndex;
+            expandSceneTitle.textContent = `Scene ${parseInt(index) + 1} 편집`;
+
+            const originalCanvas = sceneCard.querySelector('canvas');
+            const textareas = sceneCard.querySelectorAll('textarea');
+
+            // 색상 동기화
+            const sourceColor = sceneCard.querySelector('.color-btn-fill').dataset.color;
+            const expColorFill = document.getElementById('expColorFill');
+            expColorFill.dataset.color = sourceColor;
+            expColorFill.style.backgroundColor = sourceColor;
+
+            document.getElementById('expWidthSlider').value = sceneCard.querySelector('.width-slider').value;
+
+            expCtx.clearRect(0, 0, expCanvas.width, expCanvas.height);
+            expCtx.drawImage(originalCanvas, 0, 0, expCanvas.width, expCanvas.height);
+
+            expDialogue.value = textareas[0].value;
+            expNote.value = textareas[1].value;
+
+            document.getElementById('expPenBtn').click();
+            expandModal.classList.add('active');
+        }
+
+        function closeExpandModal() {
+            expandModal.classList.remove('active');
+            currentTargetCard = null;
+        }
+
+        function saveExpandModal() {
+            if(!currentTargetCard) return;
+
+            const originalCanvas = currentTargetCard.querySelector('canvas');
+            const origCtx = originalCanvas.getContext('2d');
+            const textareas = currentTargetCard.querySelectorAll('textarea');
+
+            // 모달에서의 색상 및 두께 수정 사항을 원본 카드로 전달
+            const expColor = document.getElementById('expColorFill').dataset.color;
+            const sceneColorFill = currentTargetCard.querySelector('.color-btn-fill');
+            sceneColorFill.dataset.color = expColor;
+            sceneColorFill.style.backgroundColor = expColor;
+
+            currentTargetCard.querySelector('.width-slider').value = document.getElementById('expWidthSlider').value;
+
+            origCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+            origCtx.drawImage(expCanvas, 0, 0, originalCanvas.width, originalCanvas.height);
+
+            textareas[0].value = expDialogue.value;
+            textareas[1].value = expNote.value;
+
+            saveState();
+            closeExpandModal();
+            showToast("수정사항이 반영되었습니다.");
+        }
+
+        // ==========================================
+        // 앱 초기화 로직
+        // ==========================================
+        function initApp() {
+            const savedData = localStorage.getItem('storyboardData');
+            let initialData = null;
+            if (savedData) {
+                try {
+                    initialData = JSON.parse(savedData);
+                } catch(e) { console.error("데이터 파싱 실패"); }
+            }
+            
+            renderState(initialData);
+            
+            historyStates.push({ title: scenarioTitleInput.value, scenes: getAllScenesData() });
+            currentStateIndex = 0;
+            updateHistoryButtons();
+        }
+
+        initApp();
+
+    </script>
+</body>
+</html>
