@@ -925,6 +925,7 @@
             boardContainer.appendChild(sceneCard);
         }
 
+        // 버튼 이벤트를 확실하게 연결
         document.getElementById('addSceneBtn').addEventListener('click', () => {
             createSceneCard();
             updateUI();
@@ -1205,86 +1206,6 @@
         }
 
         // ==========================================
-        // PDF 출력 기능 (우측 잘림 완벽 해결)
-        // ==========================================
-        function exportPDF() {
-            showToast("PDF를 생성하는 중입니다. 잠시만 기다려주세요...");
-            
-            const data = getAllScenesData();
-            const title = scenarioTitleInput.value || '애니메이션 스토리보드';
-            
-            const printContainer = document.createElement('div');
-            // A4 문서 비율에 최적화된 픽셀 너비로 고정
-            printContainer.style.width = '794px'; 
-            printContainer.style.padding = '20px';
-            printContainer.style.backgroundColor = '#ffffff';
-            printContainer.style.fontFamily = "'Pretendard', 'Malgun Gothic', sans-serif";
-            printContainer.style.color = '#1f2937';
-            printContainer.style.boxSizing = 'border-box';
-            
-            let htmlContent = `
-                <h1 style="text-align: center; margin-bottom: 30px; font-size: 26px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px;">${title}</h1>
-            `;
-            
-            data.forEach(scene => {
-                const formatText = (text) => text ? text.replace(/\n/g, '<br>') : '<span style="color: #9ca3af;">(없음)</span>';
-                
-                htmlContent += `
-                    <div style="page-break-inside: avoid; margin-bottom: 25px; border: 1px solid #d1d5db; border-radius: 8px; background-color: #fff; overflow: hidden; box-sizing: border-box;">
-                        <div style="padding: 12px 15px; border-bottom: 1px solid #e5e7eb; background-color: #f9fafb; box-sizing: border-box;">
-                            <h3 style="margin: 0; font-size: 16px; color: #2563eb;">Scene ${scene.id}</h3>
-                        </div>
-                        <div style="padding: 15px; display: block; overflow: hidden; box-sizing: border-box;">
-                            
-                            <!-- 좌측: 캔버스 이미지 -->
-                            <div style="float: left; width: 48%; box-sizing: border-box;">
-                                <img src="${scene.canvasData}" style="width: 100%; display: block; border: 1px solid #e5e7eb; border-radius: 4px; box-sizing: border-box;">
-                            </div>
-                            
-                            <!-- 우측: 텍스트 정보 -->
-                            <div style="float: right; width: 48%; box-sizing: border-box;">
-                                <div style="margin-bottom: 15px; background-color: #f9fafb; padding: 10px; border-radius: 6px; border: 1px solid #f3f4f6; box-sizing: border-box;">
-                                    <strong style="font-size: 13px; color: #4b5563; display: block; margin-bottom: 6px;">대사</strong>
-                                    <div style="font-size: 14px; line-height: 1.6; min-height: 40px; word-break: break-all;">${formatText(scene.dialogue)}</div>
-                                </div>
-                                <div style="background-color: #f9fafb; padding: 10px; border-radius: 6px; border: 1px solid #f3f4f6; box-sizing: border-box;">
-                                    <strong style="font-size: 13px; color: #4b5563; display: block; margin-bottom: 6px;">노트</strong>
-                                    <div style="font-size: 14px; line-height: 1.6; min-height: 40px; word-break: break-all;">${formatText(scene.note)}</div>
-                                </div>
-                            </div>
-                            <!-- float 겹침 방지 해제 -->
-                            <div style="clear: both;"></div>
-
-                        </div>
-                    </div>
-                `;
-            });
-            
-            printContainer.innerHTML = htmlContent;
-            
-            const opt = {
-                margin:       [15, 10, 15, 10],  // 좁아진 너비 보상을 위해 좌우 여백을 10mm로 조절
-                filename:     `${title}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { 
-                    scale: 2, 
-                    useCORS: true, 
-                    letterRendering: true,
-                    windowWidth: 794, // ★ 핵심: 화면 크기에 상관없이 794px 너비로 렌더링 강제
-                    width: 794        // 캔버스 자체의 물리적 캡처 폭도 고정
-                },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            
-            html2pdf().set(opt).from(printContainer).save().then(() => {
-                showToast("PDF 출력이 완료되었습니다.");
-            }).catch(err => {
-                console.error(err);
-                showToast("PDF 생성 중 오류가 발생했습니다.");
-            });
-        }
-
-        // ==========================================
         // 확대 편집 모달 세팅
         // ==========================================
         const expandModal = document.getElementById('expandModal');
@@ -1370,16 +1291,25 @@
         // 앱 초기화 로직
         // ==========================================
         function initApp() {
-            const savedData = localStorage.getItem('storyboardData');
-            let initialData = null;
-            if (savedData) {
-                try {
+            try {
+                // 저장된 데이터가 깨져있을 경우를 대비한 Try-Catch
+                const savedData = localStorage.getItem('storyboardData');
+                let initialData = null;
+                
+                if (savedData) {
                     initialData = JSON.parse(savedData);
-                } catch(e) { console.error("데이터 파싱 실패"); }
+                }
+                
+                // 데이터 렌더링 시도
+                renderState(initialData);
+            } catch (e) {
+                console.error("저장된 데이터 파싱 실패. 초기 상태로 시작합니다.", e);
+                // 오류 발생 시 로컬 스토리지 비우고 깨끗하게 시작
+                localStorage.removeItem('storyboardData');
+                renderState(null);
             }
             
-            renderState(initialData);
-            
+            // 최초 상태 저장
             historyStates.push({ title: scenarioTitleInput.value, scenes: getAllScenesData() });
             currentStateIndex = 0;
             updateHistoryButtons();
